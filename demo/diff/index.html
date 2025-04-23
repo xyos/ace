@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Ace-diff - Simple Demo #1</title>
+    <title>Ace-diff - With Code Lens for Accept/Reject</title>
 
     <script src="../kitchen-sink/require.js"></script>
 
@@ -43,8 +43,8 @@
 <div class="toolbar">
     <button id="btn-prev" onclick="goToPrevious()">Previous</button>
     <button id="btn-next" onclick="goToNext()">Next</button>
-    <button id="" onclick="setMode('inlineA')">inlineA</button>
-    <button id="" onclick="setMode('inlineB')">inlineB</button>
+    <button id="" onclick="setMode('inlineA')">inlineA (with code lens)</button>
+    <button id="" onclick="setMode('inlineB')">inlineB (with code lens)</button>
     <button id="" onclick="setMode('split')">split</button>
     <button id="" onclick="setMode('off')">off</button>
     <select id="provider" onchange="changeProvider(this.value)">
@@ -151,6 +151,11 @@
                 });
                 if (!debugInline) editorB.container.style.display = "none";
                 editorA.container.style.display = "";
+                
+                // Enable code lens for inline diff view
+                editorA.setOption("enableCodeLens", true);
+                var diffCodeLens = require("diff/diff_code_lens");
+                diffCodeLens.registerDiffCodeLensProvider(diffView, editorA);
                 break;
             case "inlineB":
                 var {InlineDiffView} = require("ace/ext/diff/inline_diff_view");
@@ -160,18 +165,31 @@
                 });
                 editorB.container.style.display = "";
                 if (!debugInline) editorA.container.style.display = "none";
+                
+                // Enable code lens for inline diff view
+                editorB.setOption("enableCodeLens", true);
+                var diffCodeLens = require("diff/diff_code_lens");
+                diffCodeLens.registerDiffCodeLensProvider(diffView, editorB);
                 break;
             case "split":
                 var {SideBySideDiffView} = require("ace/ext/diff/sidebyside_diff_view");
                 diffView = new SideBySideDiffView({editorA, editorB});
                 editorA.container.style.display = "";
                 editorB.container.style.display = "";
+                
+                // Disable code lens for side-by-side view
+                editorA.setOption("enableCodeLens", false);
+                editorB.setOption("enableCodeLens", false);
                 break;
             case "off":
                 diffView.detach("off");
                 diffView = undefined;
                 editorA.container.style.display = "";
                 editorB.container.style.display = "";
+                
+                // Disable code lens when diff is off
+                editorA.setOption("enableCodeLens", false);
+                editorB.setOption("enableCodeLens", false);
                 break;
         }
         if (diffView) {
@@ -179,6 +197,14 @@
             diffView.options.foldUnchanged = shouldFoldUnchanged
 
             changeProvider(provider);
+            
+            // Update code lens when diff view changes
+            if (mode === "inlineA" || mode === "inlineB") {
+                var activeEditor = mode === "inlineA" ? editorA : editorB;
+                if (activeEditor.$updateLenses) {
+                    activeEditor.$updateLenses();
+                }
+            }
         }
         diffView?.onInput();
     }
@@ -199,7 +225,7 @@
 
 
     require(["ace/ext/diff/sidebyside_diff_view", "ace/ext/diff/inline_diff_view", "demo/kitchen-sink/util",
-        "demo/kitchen-sink/layout", "diff/diff_providers"], function () {
+        "demo/kitchen-sink/layout", "diff/diff_providers", "ace/ext/code_lens", "diff/diff_code_lens"], function () {
         var {DiffMatchPatchProvider, DefaultDiffProvider} = require("diff/diff_providers");
 
         changeProvider = (value) => {
