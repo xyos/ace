@@ -88,6 +88,66 @@ module.exports = {
             "<span class=\"ace_invisible ace_invisible_space\">" + DOT(6) + "</span>" + EOL,
             "<span class=\"ace_invisible ace_invisible_tab\">" + TAB(4) + "</span><span class=\"ace_invisible ace_invisible_tab\">" + TAB(4) + "</span><span class=\"ace_identifier\">f</span>" + EOL
         ]);
+    },
+
+    "test complex emoji rendering": {
+        setUp: function(next) {
+            // Use the global session and textLayer, but configure them for these tests
+            this.textLayer.setShowInvisibles(false);
+            // Ensure config is reset/standard for these tests, similar to global setUp
+            this.textLayer.config = { 
+                characterWidth: 10, 
+                lineHeight: 20 
+            };
+            this.session.setValue(""); // Clear session content before each test in this suite
+            this.textLayer.$computeTabString(); // Recompute if tab settings changed by showInvisibles
+            next();
+        },
+
+        "test: renders man mountain biking emoji (🚵‍♂️) correctly": function() {
+            var emoji = "🚵‍♂️"; // U+1F6B5 U+200D U+2642 U+FE0F
+            this.session.setValue(emoji);
+            var parent = dom.createElement("div");
+            this.textLayer.$renderLine(parent, 0);
+            assert.ok(!parent.innerHTML.includes("ace_invisible_space ace_invalid"), "Emoji '🚵‍♂️' should not contain invalid space spans. HTML: " + parent.innerHTML);
+            assert.equal(parent.textContent, emoji, "Rendered text content for '🚵‍♂️' should be the emoji itself.");
+        },
+
+        "test: renders woman biking emoji (🚴‍♀️) correctly": function() {
+            var emoji = "🚴‍♀️"; // U+1F6B4 U+200D U+2640 U+FE0F
+            this.session.setValue(emoji);
+            var parent = dom.createElement("div");
+            this.textLayer.$renderLine(parent, 0);
+            assert.ok(!parent.innerHTML.includes("ace_invisible_space ace_invalid"), "Emoji '🚴‍♀️' should not contain invalid space spans. HTML: " + parent.innerHTML);
+            assert.equal(parent.textContent, emoji, "Rendered text content for '🚴‍♀️' should be the emoji itself.");
+        },
+
+        "test: renders thumbs up with skin tone modifier (👍🏼) correctly": function() {
+            var emoji = "👍🏼"; // U+1F44D U+1F3FC
+            this.session.setValue(emoji);
+            var parent = dom.createElement("div");
+            this.textLayer.$renderLine(parent, 0);
+            assert.ok(!parent.innerHTML.includes("ace_invisible_space ace_invalid"), "Emoji '👍🏼' should not contain invalid space spans. HTML: " + parent.innerHTML);
+            assert.equal(parent.textContent, emoji, "Rendered text content for '👍🏼' should be the emoji itself.");
+        },
+
+        "test: renders family emoji (👨‍👩‍👧‍👦) correctly": function() {
+            var emoji = "👨‍👩‍👧‍👦"; // U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466
+            this.session.setValue(emoji);
+            var parent = dom.createElement("div");
+            this.textLayer.$renderLine(parent, 0);
+            assert.ok(!parent.innerHTML.includes("ace_invisible_space ace_invalid"), "Emoji '👨‍👩‍👧‍👦' should not contain invalid space spans. HTML: " + parent.innerHTML);
+            assert.equal(parent.textContent, emoji, "Rendered text content for '👨‍👩‍👧‍👦' should be the emoji itself.");
+        },
+
+        "test: renders rainbow flag emoji (🏳️‍🌈) correctly": function() {
+            var emoji = "🏳️‍🌈"; // U+1F3F3 U+FE0F U+200D U+1F308
+            this.session.setValue(emoji);
+            var parent = dom.createElement("div");
+            this.textLayer.$renderLine(parent, 0);
+            assert.ok(!parent.innerHTML.includes("ace_invisible_space ace_invalid"), "Emoji '🏳️‍🌈' should not contain invalid space spans. HTML: " + parent.innerHTML);
+            assert.equal(parent.textContent, emoji, "Rendered text content for '🏳️‍🌈' should be the emoji itself.");
+        }
     }
 };
 
