@@ -1029,6 +1029,7 @@ class EditSession {
             this.$options.wrapMethod.set.call(this, this.$wrapMethod);
             this.$setFolding(mode.foldingRules);
             this.bgTokenizer.start(0);
+            console.log("Mode changed from", oldMode ? oldMode.$id : "none", "to", mode.$id);
             this._emit("changeMode", {oldMode: oldMode, mode: mode});
         }
     }
