@@ -350,7 +350,8 @@ class Text {
 
     $renderToken(parent, screenColumn, token, value) {
         var self = this;
-        var re = /(\t)|( +)|([\x00-\x1f\x80-\xa0\xad\u1680\u180E\u2000-\u200f\u2028\u2029\u202F\u205F\uFEFF\uFFF9-\uFFFC\u2066\u2067\u2068\u202A\u202B\u202D\u202E\u202C\u2069\u2060\u2061\u2062\u2063\u2064\u206A\u206B\u206B\u206C\u206D\u206E\u206F]+)|(\u3000+)/g;
+        // \u200D (zero width joiner) is excluded to keep emoji sequences intact
+        var re = /(\t)|( +)|([\x00-\x1f\x80-\xa0\xad\u1680\u180E\u2000-\u200C\u200E\u200f\u2028\u2029\u202F\u205F\uFEFF\uFFF9-\uFFFC\u2066\u2067\u2068\u202A\u202B\u202D\u202E\u202C\u2069\u2060\u2061\u2062\u2063\u2064\u206A\u206B\u206B\u206C\u206D\u206E\u206F]+)|(\u3000+)/g;
 
         var valueFragment = this.dom.createFragment(this.element);
 
@@ -389,10 +390,18 @@ class Text {
                     valueFragment.appendChild(this.dom.createTextNode(simpleSpace, this.element));
                 }
             } else if (controlCharacter) {
-                var span = this.dom.createElement("span");
-                span.className = "ace_invisible ace_invisible_space ace_invalid";
-                span.textContent = lang.stringRepeat(self.SPACE_CHAR, controlCharacter.length);
-                valueFragment.appendChild(span);
+                var bidiHandler = self.session.$bidiHandler;
+                // line-start RLE markers managed by the rtl extension are legitimate;
+                // render them as plain text instead of invalid dots (issue #5423)
+                if (controlCharacter == "\u202B" && screenColumn + m.index === 0 && bidiHandler
+                    && (bidiHandler.$isRtl || bidiHandler.$rtlText)) {
+                    valueFragment.appendChild(this.dom.createTextNode(controlCharacter, this.element));
+                } else {
+                    var span = this.dom.createElement("span");
+                    span.className = "ace_invisible ace_invisible_space ace_invalid";
+                    span.textContent = lang.stringRepeat(self.SPACE_CHAR, controlCharacter.length);
+                    valueFragment.appendChild(span);
+                }
             } else if (cjkSpace) {
                 if (self.showSpaces) {
                     var span = this.dom.createElement("span");

@@ -37,6 +37,8 @@ class BidiHandler {
         this.rtlLineOffset = 0;
         this.wrapOffset = 0;
         this.isMoveLeftOperation = false;
+        /* set by the rtl extension when line-based rtl switching is enabled */
+        this.$rtlText = false;
         this.seenBidi = bidiRE.test(session.getValue());
     }
 

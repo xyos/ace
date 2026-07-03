@@ -390,10 +390,15 @@ class FontMetrics {
     $pixelToColumn(screenRow, screenColumn1, x, blockCursor) {
         var scratchRange = this.$scratchRange;
         var lineElement = this.$findElementForScreenRow(screenRow);
-        if (!lineElement || screenColumn1 <= 0) return screenColumn1;
+        if (!lineElement) return screenColumn1;
 
         var hasCssTransform = this.renderer.$hasCssTransforms;
         var tr = hasCssTransform && this.getTransform();
+
+        var lineRect = hasCssTransform
+            ? this.recoverRect(tr, lineElement.getBoundingClientRect())
+            : lineElement.getBoundingClientRect();
+        if (x <= lineRect.left) return Math.min(screenColumn1, 0);
 
         var screenColumn = 0;
         var getRects = (node) => {
@@ -418,17 +423,11 @@ class FontMetrics {
         var self = this;
         function search(node) {
             if (node.nodeType === Node.TEXT_NODE) {
-                var textLength = node.nodeValue.length;
-                var graphemeWidth = 1;
-                for (var j = 0; j < textLength; j+= graphemeWidth) {
+                var boundaries = lang.getGraphemeBoundaries(node.nodeValue);
+                for (var bi = 0; bi < boundaries.length - 1; bi++) {
+                    var j = boundaries[bi];
+                    var graphemeWidth = boundaries[bi + 1] - j;
                     scratchRange.setStart(node, j);
-                    graphemeWidth = 1;
-                    if (
-                        /[\uD800-\uDBFF]/.test(node.nodeValue.charAt(j)) && j + 1 < textLength &&
-                        /[\uDC00-\uDFFF]/.test(node.nodeValue.charAt(j + 1))
-                    ) {
-                        graphemeWidth = 2;
-                    }
                     scratchRange.setEnd(node, j + graphemeWidth);
                     let rect = /** @type {ReturnType<FontMetrics['recoverRect']>}*/(scratchRange.getBoundingClientRect());
                     if (hasCssTransform) {
@@ -450,7 +449,7 @@ class FontMetrics {
                     var rects = getRects(child);
                     for (var j = 0; j < rects.length; j++) {
                         let rect = rects[j];
-                        if (rect.left < x && x < rect.left + rect.width) {
+                        if (rect.left <= x && x <= rect.left + rect.width) {
                             search(child);
                             return screenColumn;
                         }

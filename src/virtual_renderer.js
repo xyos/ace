@@ -1675,9 +1675,7 @@ class VirtualRenderer {
         var canvasPos = this.scroller.getBoundingClientRect();
         var pos = this.session.documentToScreenPosition(row, column);
 
-        var x = this.$padding + (this.session.$bidiHandler.isBidiRow(pos.row, row)
-             ? this.session.$bidiHandler.getPosLeft(pos.column)
-             : Math.round(pos.column * this.characterWidth));
+        var x = this.$padding + this.$fontMetrics.textWidth(pos.row, pos.column);
 
         var y = pos.row * this.lineHeight;
 

@@ -207,3 +207,53 @@ exports.supportsLookbehind = function () {
 exports.skipEmptyMatch = function(line, last, supportsUnicodeFlag) {
     return supportsUnicodeFlag && line.codePointAt(last) > 0xffff ? 2 : 1;
 };
+
+/*global Intl*/
+var graphemeSegmenter;
+function getSegmenter() {
+    if (graphemeSegmenter === undefined) {
+        graphemeSegmenter = typeof Intl == "object" && Intl["Segmenter"]
+            ? new Intl["Segmenter"](undefined, {granularity: "grapheme"}) : null;
+    }
+    return graphemeSegmenter;
+}
+
+/**
+ * Returns the [start, end) code unit offsets of the grapheme cluster containing
+ * `column`, or null if `Intl.Segmenter` is unavailable or `column` is outside the text.
+ * @param {string} text
+ * @param {number} column
+ * @returns {{start: number, end: number} | null}
+ */
+exports.getGraphemeCluster = function(text, column) {
+    var segmenter = getSegmenter();
+    if (!segmenter) return null;
+    var segment = segmenter.segment(text).containing(column);
+    if (!segment) return null;
+    return {start: segment.index, end: segment.index + segment.segment.length};
+};
+
+/**
+ * Returns the grapheme cluster boundaries of `text` as code unit offsets,
+ * including 0 and text.length. Falls back to surrogate pair boundaries
+ * when `Intl.Segmenter` is unavailable.
+ * @param {string} text
+ * @returns {number[]}
+ */
+exports.getGraphemeBoundaries = function(text) {
+    var boundaries = [0];
+    var segmenter = getSegmenter();
+    if (segmenter) {
+        var iterator = segmenter.segment(text)[Symbol.iterator]();
+        var step;
+        while (!(step = iterator.next()).done)
+            boundaries.push(step.value.index + step.value.segment.length);
+    } else {
+        for (var i = 0; i < text.length; i++) {
+            if (/[\uD800-\uDBFF]/.test(text.charAt(i)) && /[\uDC00-\uDFFF]/.test(text.charAt(i + 1)))
+                i++;
+            boundaries.push(i + 1);
+        }
+    }
+    return boundaries;
+};
