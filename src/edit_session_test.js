@@ -416,6 +416,33 @@ module.exports = {
         computeAndAssert("\tfoo \t \t   \t \t bar", [6, 12]); // 14
     },
 
+    "test: wrapLine split never breaks grapheme clusters" : function() {
+        function computeSplits(line, wrapLimit) {
+            var tokens = EditSession.prototype.$getDisplayTokens(line);
+            return EditSession.prototype.$computeWrapSplits(tokens, wrapLimit, 4);
+        }
+        EditSession.prototype.$wrapAsCode = true;
+        EditSession.prototype.$indentedSoftWrap = false;
+
+        var family = "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466}"; // 👨‍👩‍👧‍👦, 11 code units
+        var line = "ab " + family + " cd";
+        for (var wrapLimit = 2; wrapLimit <= 14; wrapLimit++) {
+            var splits = computeSplits(line, wrapLimit);
+            splits.forEach(function(col) {
+                assert.ok(col <= 3 || col >= 3 + family.length,
+                    "wrapLimit " + wrapLimit + " split at " + col + " inside cluster");
+            });
+        }
+
+        // combining marks stay attached to their base character
+        var splits = computeSplits("a\u0300e\u0301o\u0302", 2);
+        assert.equal(splits.join(","), "2,4");
+
+        // surrogate pairs
+        splits = computeSplits("\u{1F600}\u{1F600}\u{1F600}", 2);
+        assert.equal(splits.join(","), "2,4");
+    },
+
     "test get longest line" : function() {
         var session = new EditSession(["12"]);
         session.setTabSize(4);

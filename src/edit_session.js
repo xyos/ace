@@ -1930,12 +1930,25 @@ class EditSession {
             return Math.min(indentation, maxIndent);
         }
         function addSplit(screenPos) {
+            // never split inside a grapheme cluster or full width character
+            while (screenPos > lastSplit && (tokens[screenPos] === CHAR_CONT || tokens[screenPos] === CHAR_EXT))
+                screenPos--;
+            if (screenPos === lastSplit) {
+                // the cluster is wider than the wrap limit, place it whole on this line
+                screenPos = lastSplit + 1;
+                while (screenPos < tokens.length && (tokens[screenPos] === CHAR_CONT || tokens[screenPos] === CHAR_EXT))
+                    screenPos++;
+                if (screenPos === tokens.length) {
+                    lastSplit = screenPos; // line ends with the cluster, nothing left to split
+                    return;
+                }
+            }
             // The document size is the current size - the extra width for tabs
             // and multipleWidth characters.
             var len = screenPos - lastSplit;
             for (var i = lastSplit; i < screenPos; i++) {
                 var ch = tokens[i];
-                if (ch === 12 || ch === 2) len -= 1;
+                if (ch === TAB_SPACE || ch === CHAR_EXT) len -= 1;
             }
 
             if (!splits.length) {
@@ -2054,7 +2067,21 @@ class EditSession {
         var tabSize;
         offset = offset || 0;
 
+        // continuation code units of multi-unit grapheme clusters (surrogate
+        // pairs, combining marks, ZWJ sequences) must stay with their cluster
+        // start when computing wrap splits
+        var boundaries = /[\u0300-\uFFFF]/.test(str) ? lang.getGraphemeBoundaries(str) : null;
+        var bi = 1;
+
         for (var i = 0; i < str.length; i++) {
+            if (boundaries) {
+                if (boundaries[bi] === i) {
+                    bi++;
+                } else if (i > 0) {
+                    arr.push(CHAR_CONT);
+                    continue;
+                }
+            }
             var c = str.charCodeAt(i);
             // Tab
             if (c == 9) {
@@ -2597,7 +2624,8 @@ EditSession.prototype.isFullWidth = isFullWidth;
 oop.implement(EditSession.prototype, EventEmitter);
 
 // "Tokens"
-var CHAR = 1,
+var CHAR_CONT = 0,
+    CHAR = 1,
     CHAR_EXT = 2,
     PLACEHOLDER_START = 3,
     PLACEHOLDER_BODY =  4,

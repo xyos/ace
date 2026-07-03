@@ -24,6 +24,8 @@
 <div id="ed_prop" class="ed"></div>
 <h3>ed_rtl (rtlText line-based switching)</h3>
 <div id="ed_rtl" class="ed" style="height:120px"></div>
+<h3>ed_wrap (soft wrap, limit 14)</h3>
+<div id="ed_wrap" class="ed"></div>
 <div id="results"></div>
 
 <script src="../demo/kitchen-sink/require.js"></script>
@@ -48,8 +50,17 @@ var LINES = [
 
 var TAB_ROWS = {8: true}; // rows whose rendered text != doc text (skip DOM ground truth)
 
+var WRAP_LINES = [
+    "aaaa bbbb cccc dddd eeee ffff gggg",
+    "emoji 😃😃😃 zwj 👨‍👩‍👧‍👦👨‍👩‍👧‍👦 and 🚵‍♂️🚵‍♂️ wrapping here",
+    "combining ã̤n̺ ɾ̺ub̰ĩ̈ ã̤n̺ ɾ̺ub̰ĩ̈ ã̤n̺ ɾ̺ub̰ĩ̈ marks",
+    "中文测试混合中文测试混合中文测试混合中文测试",
+    "nospacesatall👨‍👩‍👧‍👦rightthroughthecluster",
+    "עברית ארוכה מאוד שנמשכת ונמשכת עוד ועוד מילים בעברית"
+];
+
 var editors = {};
-var rtlEditor;
+var rtlEditor, wrapEditor;
 
 require(["ace/ace", "ace/ext/rtl"], function (ace) {
     ["ed_mono", "ed_prop"].forEach(function (id) {
@@ -71,6 +82,15 @@ require(["ace/ace", "ace/ext/rtl"], function (ace) {
         rtlText: true
     });
     window.rtlEditor = rtlEditor;
+    wrapEditor = ace.edit("ed_wrap", {
+        value: WRAP_LINES.join("\n"),
+        showPrintMargin: false,
+        highlightActiveLine: false,
+        fontSize: 14,
+        wrap: true
+    });
+    wrapEditor.session.setWrapLimitRange(14, 14);
+    window.wrapEditor = wrapEditor;
     window.editors = editors;
     document.getElementById("status").textContent = "ready";
     window.aceReady = true;
@@ -231,6 +251,48 @@ window.runChecks = async function () {
                 }
                 editor.clearSelection();
             }
+        }
+    }
+
+    // ---- Test G: soft wrap never splits inside a grapheme cluster ----
+    {
+        let wed = wrapEditor;
+        let session = wed.session;
+        wed.renderer.updateFull(true);
+        for (let row = 0; row < WRAP_LINES.length; row++) {
+            let line = WRAP_LINES[row];
+            let bounds = graphemeBoundaries(line);
+            let boundSet = {};
+            bounds.forEach(function (b) { boundSet[b] = true; });
+            let splits = session.$wrapData[row] || [];
+            let badSplits = splits.filter(function (docCol) { return !boundSet[docCol]; });
+            record("wrapSplitsOnGraphemeBoundary", "ed_wrap", row, -1, "[]", JSON.stringify(badSplits), 0);
+
+            // caret round trip at every grapheme boundary in wrap mode
+            for (let bi = 0; bi < bounds.length; bi++) {
+                let col = bounds[bi];
+                wed.moveCursorTo(row, col);
+                wed.clearSelection();
+                wed.renderer.updateFull(true);
+                let pagePos = wed.renderer.textToScreenCoordinates(row, col);
+                let back = wed.renderer.screenToTextCoordinates(pagePos.pageX, pagePos.pageY + wed.renderer.lineHeight / 2);
+                record("wrapRoundTripRow", "ed_wrap", row, col, row, back.row, 0);
+                record("wrapRoundTripCol", "ed_wrap", row, col, col, back.column, 0);
+            }
+
+            // arrow walk must visit every grapheme boundary (across wrapped rows)
+            wed.moveCursorTo(row, 0);
+            wed.clearSelection();
+            let visited = [0];
+            for (let step = 0; step < line.length + 2; step++) {
+                wed.navigateRight();
+                let c = wed.getCursorPosition();
+                if (c.row !== row) break;
+                if (c.column === visited[visited.length - 1]) break;
+                visited.push(c.column);
+            }
+            record("wrapArrowWalkStops", "ed_wrap", row, -1,
+                JSON.stringify(bounds), JSON.stringify(visited), 0);
         }
     }
 
