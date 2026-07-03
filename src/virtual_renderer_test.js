@@ -142,7 +142,10 @@ module.exports = {
         var p2 = renderer.textToScreenCoordinates(0, 4);
         for (var i = 0.01; i <= 1.1; i+=0.1) {
             var pos = renderer.pixelToScreenCoordinates((1-i) * p1.pageX+ i * p2.pageX, p1.pageY);
-            assert.position(pos, 0, i < 0.5 ? 2 : 4);
+            // the surrogate pair occupies a single screen column
+            assert.position(pos, 0, i < 0.5 ? 2 : 3);
+            var docPos = editor.session.screenToDocumentPosition(pos.row, pos.column);
+            assert.position(docPos, 0, i < 0.5 ? 2 : 4);
         }
     },
     "test scrollmargin + autosize": async function(done) {

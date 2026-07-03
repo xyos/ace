@@ -1861,6 +1861,7 @@ class EditSession {
                 row ++;
             } else {
                 tokens = [];
+                tokens["docLengths"] = [];
                 foldLine.walk(function(placeholder, row, column, lastColumn) {
                         var walkTokens;
                         if (placeholder != null) {
@@ -1875,7 +1876,9 @@ class EditSession {
                                 lines[row].substring(lastColumn, column),
                                 tokens.length);
                         }
+                        var docLengths = tokens["docLengths"].concat(walkTokens["docLengths"]);
                         tokens = tokens.concat(walkTokens);
+                        tokens["docLengths"] = docLengths;
                     }.bind(this),
                     foldLine.end.row,
                     lines[foldLine.end.row].length + 1
@@ -1901,6 +1904,7 @@ class EditSession {
         var splits = [];
         var displayLength = tokens.length;
         var lastSplit = 0, lastDocSplit = 0;
+        var docLengths = /**@type {number[]|undefined}*/(tokens["docLengths"]);
 
         var isCode = this.$wrapAsCode;
 
@@ -1930,25 +1934,24 @@ class EditSession {
             return Math.min(indentation, maxIndent);
         }
         function addSplit(screenPos) {
-            // never split inside a grapheme cluster or full width character
-            while (screenPos > lastSplit && (tokens[screenPos] === CHAR_CONT || tokens[screenPos] === CHAR_EXT))
+            // never split between a full width char and its extension column
+            while (screenPos > lastSplit && tokens[screenPos] === CHAR_EXT)
                 screenPos--;
             if (screenPos === lastSplit) {
-                // the cluster is wider than the wrap limit, place it whole on this line
+                // wider than the wrap limit, place it whole on this line
                 screenPos = lastSplit + 1;
-                while (screenPos < tokens.length && (tokens[screenPos] === CHAR_CONT || tokens[screenPos] === CHAR_EXT))
+                while (screenPos < tokens.length && tokens[screenPos] === CHAR_EXT)
                     screenPos++;
                 if (screenPos === tokens.length) {
-                    lastSplit = screenPos; // line ends with the cluster, nothing left to split
+                    lastSplit = screenPos; // line ends here, nothing left to split
                     return;
                 }
             }
-            // The document size is the current size - the extra width for tabs
-            // and multipleWidth characters.
-            var len = screenPos - lastSplit;
+            // The document size is the sum of code units consumed by the
+            // display tokens (grapheme clusters may consume several).
+            var len = 0;
             for (var i = lastSplit; i < screenPos; i++) {
-                var ch = tokens[i];
-                if (ch === TAB_SPACE || ch === CHAR_EXT) len -= 1;
+                len += docLengths ? docLengths[i] : 1;
             }
 
             if (!splits.length) {
@@ -2064,46 +2067,50 @@ class EditSession {
      **/
     $getDisplayTokens(str, offset) {
         var arr = [];
+        // document code units consumed by each display token; tokens that only
+        // occupy screen space (TAB_SPACE, CHAR_EXT) consume 0
+        var docLengths = [];
         var tabSize;
         offset = offset || 0;
 
-        // continuation code units of multi-unit grapheme clusters (surrogate
-        // pairs, combining marks, ZWJ sequences) must stay with their cluster
-        // start when computing wrap splits
-        var boundaries = /[\u0300-\uFFFF]/.test(str) ? lang.getGraphemeBoundaries(str) : null;
-        var bi = 1;
+        // each grapheme cluster (surrogate pair, combining mark sequence, ZWJ
+        // emoji) produces a single display token so it can never be split
+        var boundaries = lang.mayContainGraphemeClusters(str)
+            ? lang.getGraphemeBoundaries(str) : null;
+        var end = boundaries ? boundaries.length - 1 : str.length;
 
-        for (var i = 0; i < str.length; i++) {
-            if (boundaries) {
-                if (boundaries[bi] === i) {
-                    bi++;
-                } else if (i > 0) {
-                    arr.push(CHAR_CONT);
-                    continue;
-                }
-            }
-            var c = str.charCodeAt(i);
+        for (var i = 0; i < end; i++) {
+            var start = boundaries ? boundaries[i] : i;
+            var clusterLength = boundaries ? boundaries[i + 1] - start : 1;
+            var c = str.charCodeAt(start);
             // Tab
             if (c == 9) {
                 tabSize = this.getScreenTabSize(arr.length + offset);
                 arr.push(TAB);
+                docLengths.push(clusterLength);
                 for (var n = 1; n < tabSize; n++) {
                     arr.push(TAB_SPACE);
+                    docLengths.push(0);
                 }
             }
             // Space
             else if (c == 32) {
                 arr.push(SPACE);
+                docLengths.push(clusterLength);
             } else if((c > 39 && c < 48) || (c > 57 && c < 64)) {
                 arr.push(PUNCTUATION);
+                docLengths.push(clusterLength);
             }
             // full width characters
             else if (c >= 0x1100 && isFullWidth(c)) {
                 arr.push(CHAR, CHAR_EXT);
+                docLengths.push(clusterLength, 0);
             } else {
                 arr.push(CHAR);
+                docLengths.push(clusterLength);
             }
         }
+        arr["docLengths"] = docLengths;
         return arr;
     }
 
@@ -2124,6 +2131,25 @@ class EditSession {
         screenColumn = screenColumn || 0;
 
         var c, column;
+        if (lang.mayContainGraphemeClusters(str)) {
+            // one grapheme cluster occupies one screen column
+            var boundaries = lang.getGraphemeBoundaries(str);
+            column = 0;
+            for (var bi = 1; bi < boundaries.length; bi++) {
+                c = str.charCodeAt(boundaries[bi - 1]);
+                if (c == 9) {
+                    screenColumn += this.getScreenTabSize(screenColumn);
+                } else {
+                    screenColumn += 1;
+                }
+                if (screenColumn > maxScreenColumn) {
+                    column = boundaries[bi - 1];
+                    break;
+                }
+                column = boundaries[bi];
+            }
+            return [screenColumn, column];
+        }
         for (column = 0; column < str.length; column++) {
             c = str.charCodeAt(column);
             // tab
@@ -2624,8 +2650,7 @@ EditSession.prototype.isFullWidth = isFullWidth;
 oop.implement(EditSession.prototype, EventEmitter);
 
 // "Tokens"
-var CHAR_CONT = 0,
-    CHAR = 1,
+var CHAR = 1,
     CHAR_EXT = 2,
     PLACEHOLDER_START = 3,
     PLACEHOLDER_BODY =  4,

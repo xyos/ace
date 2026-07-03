@@ -191,6 +191,12 @@ window.runChecks = async function () {
                 }
             }
 
+            // ---- Test H: 1 grapheme = 1 screen column ----
+            if (!TAB_ROWS[row]) {
+                var screenCol = editor.session.documentToScreenPosition(row, line.length).column;
+                record("graphemeColumns", id, row, line.length, bounds.length - 1, screenCol, 0);
+            }
+
             // ---- Test B: textToScreen -> screenToText round trip ----
             for (var bi = 0; bi < bounds.length; bi++) {
                 var col = bounds[bi];

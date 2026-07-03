@@ -434,13 +434,15 @@ module.exports = {
             });
         }
 
-        // combining marks stay attached to their base character
+        // combining marks stay attached to their base character;
+        // each cluster occupies one screen column, so three clusters
+        // at wrapLimit 2 wrap once, after the second cluster
         var splits = computeSplits("a\u0300e\u0301o\u0302", 2);
-        assert.equal(splits.join(","), "2,4");
+        assert.equal(splits.join(","), "4");
 
         // surrogate pairs
         splits = computeSplits("\u{1F600}\u{1F600}\u{1F600}", 2);
-        assert.equal(splits.join(","), "2,4");
+        assert.equal(splits.join(","), "4");
     },
 
     "test get longest line" : function() {

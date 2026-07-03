@@ -209,6 +209,26 @@ exports.skipEmptyMatch = function(line, last, supportsUnicodeFlag) {
 };
 
 /*global Intl*/
+var clusterRe;
+try {
+    // marks, ZWJ, variation selectors, astral code points, conjoining jamo;
+    // with the u flag paired surrogates match as code points, so astral
+    // chars need the explicit \u{10000}-\u{10FFFF} range
+    clusterRe = new RegExp("[\\p{M}\\u200D\\uFE00-\\uFE0F\\u{10000}-\\u{10FFFF}\\u1100-\\u11FF\\uA960-\\uA97F\\uD7B0-\\uD7FF]", "u");
+} catch (e) {
+    clusterRe = /[\u0300-\uFFFF]/;
+}
+
+/**
+ * Quick test whether `text` may contain grapheme clusters spanning more than
+ * one code unit. False guarantees every code unit is its own cluster.
+ * @param {string} text
+ * @returns {boolean}
+ */
+exports.mayContainGraphemeClusters = function(text) {
+    return clusterRe.test(text);
+};
+
 var graphemeSegmenter;
 function getSegmenter() {
     if (graphemeSegmenter === undefined) {

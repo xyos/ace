@@ -358,19 +358,23 @@ class FontMetrics {
 
         while (node = walker.nextNode()) {
             var nodeText = node.nodeValue;
-            var nodeLength = nodeText.length;
+            // one grapheme cluster occupies one screen column
+            var boundaries = lang.mayContainGraphemeClusters(nodeText)
+                ? lang.getGraphemeBoundaries(nodeText) : null;
+            var nodeColumns = boundaries ? boundaries.length - 1 : nodeText.length;
 
-            if (currentColumn + nodeLength >= screenColumn) {
+            if (currentColumn + nodeColumns >= screenColumn) {
+                var columnInNode = screenColumn - currentColumn;
                 return {
                     node: node,
-                    offset: screenColumn - currentColumn,
+                    offset: boundaries ? boundaries[columnInNode] : columnInNode,
                     overflow: 0
                 };
             }
-            currentColumn += nodeLength;
+            currentColumn += nodeColumns;
             lastNode = node;
         }
-        
+
         return lastNode && {
             node: lastNode,
             offset: lastNode.nodeValue.length,
@@ -421,22 +425,26 @@ class FontMetrics {
             return rects;
         };
         var self = this;
+        // screen columns are grapheme clusters, not code units
+        function countColumns(text) {
+            return lang.mayContainGraphemeClusters(text)
+                ? lang.getGraphemeBoundaries(text).length - 1 : text.length;
+        }
         function search(node) {
             if (node.nodeType === Node.TEXT_NODE) {
                 var boundaries = lang.getGraphemeBoundaries(node.nodeValue);
                 for (var bi = 0; bi < boundaries.length - 1; bi++) {
                     var j = boundaries[bi];
-                    var graphemeWidth = boundaries[bi + 1] - j;
                     scratchRange.setStart(node, j);
-                    scratchRange.setEnd(node, j + graphemeWidth);
+                    scratchRange.setEnd(node, boundaries[bi + 1]);
                     let rect = /** @type {ReturnType<FontMetrics['recoverRect']>}*/(scratchRange.getBoundingClientRect());
                     if (hasCssTransform) {
                         rect = self.recoverRect(tr, rect);
                     }
                     if (rect.left <= x && x <= rect.left + rect.width) {
-                        screenColumn += j;
+                        screenColumn += bi;
                         if (!blockCursor && x > rect.left + rect.width / 2) {
-                            screenColumn += graphemeWidth;
+                            screenColumn += 1;
                         }
                         return screenColumn;
                     }
@@ -454,7 +462,7 @@ class FontMetrics {
                             return screenColumn;
                         }
                     }
-                    screenColumn += child.nodeType === Node.TEXT_NODE ? child.nodeValue.length : child.textContent.length;
+                    screenColumn += countColumns(child.nodeType === Node.TEXT_NODE ? child.nodeValue : child.textContent);
                 }
             }
         }
