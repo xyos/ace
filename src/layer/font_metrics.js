@@ -432,11 +432,14 @@ class FontMetrics {
         }
         function search(node) {
             if (node.nodeType === Node.TEXT_NODE) {
-                var boundaries = lang.getGraphemeBoundaries(node.nodeValue);
-                for (var bi = 0; bi < boundaries.length - 1; bi++) {
-                    var j = boundaries[bi];
+                var text = node.nodeValue;
+                var boundaries = lang.mayContainGraphemeClusters(text)
+                    ? lang.getGraphemeBoundaries(text) : null;
+                var columns = boundaries ? boundaries.length - 1 : text.length;
+                for (var bi = 0; bi < columns; bi++) {
+                    var j = boundaries ? boundaries[bi] : bi;
                     scratchRange.setStart(node, j);
-                    scratchRange.setEnd(node, boundaries[bi + 1]);
+                    scratchRange.setEnd(node, boundaries ? boundaries[bi + 1] : bi + 1);
                     let rect = /** @type {ReturnType<FontMetrics['recoverRect']>}*/(scratchRange.getBoundingClientRect());
                     if (hasCssTransform) {
                         rect = self.recoverRect(tr, rect);

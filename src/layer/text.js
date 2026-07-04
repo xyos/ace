@@ -353,9 +353,12 @@ class Text {
         // \u200D (zero width joiner) is excluded to keep emoji sequences intact
         var re = /(\t)|( +)|([\x00-\x1f\x80-\xa0\xad\u1680\u180E\u2000-\u200C\u200E\u200f\u2028\u2029\u202F\u205F\uFEFF\uFFF9-\uFFFC\u2066\u2067\u2068\u202A\u202B\u202D\u202E\u202C\u2069\u2060\u2061\u2062\u2063\u2064\u206A\u206B\u206B\u206C\u206D\u206E\u206F]+)|(\u3000+)/g;
 
-        // screen columns count grapheme clusters, not code units
-        var screenLength = lang.mayContainGraphemeClusters(value)
-            ? lang.getGraphemeBoundaries(value).length - 1 : value.length;
+        // screen columns count grapheme clusters, not code units;
+        // segment the value at most once and reuse for tab stop lookups
+        var boundaries = lang.mayContainGraphemeClusters(value)
+            ? lang.getGraphemeBoundaries(value) : null;
+        var screenLength = boundaries ? boundaries.length - 1 : value.length;
+        var boundaryIndex = 0;
 
         var valueFragment = this.dom.createFragment(this.element);
 
@@ -379,8 +382,14 @@ class Text {
             }
 
             if (tab) {
-                var columnsBefore = lang.mayContainGraphemeClusters(value)
-                    ? lang.getGraphemeBoundaries(value.slice(0, m.index)).length - 1 : m.index;
+                var columnsBefore = m.index;
+                if (boundaries) {
+                    // matches arrive in ascending order and a tab is always its
+                    // own cluster, so a monotonic cursor into boundaries suffices
+                    while (boundaries[boundaryIndex] < m.index)
+                        boundaryIndex++;
+                    columnsBefore = boundaryIndex;
+                }
                 var tabSize = self.session.getScreenTabSize(screenColumn + columnsBefore);
                 var text = self.$tabStrings[tabSize].cloneNode(true);
                 text["charCount"] = 1;
@@ -398,7 +407,10 @@ class Text {
             } else if (controlCharacter) {
                 var bidiHandler = self.session.$bidiHandler;
                 // line-start RLE markers managed by the rtl extension are legitimate;
-                // render them as plain text instead of invalid dots (issue #5423)
+                // render them as plain text instead of invalid dots (issue #5423).
+                // This hides a smuggled RLE on an LTR line too, but the rtl
+                // extension right-aligns and reverses any RLE-prefixed line, so
+                // the manipulation stays clearly visible.
                 if (controlCharacter == "\u202B" && screenColumn + m.index === 0 && bidiHandler
                     && (bidiHandler.$isRtl || bidiHandler.$rtlText)) {
                     valueFragment.appendChild(this.dom.createTextNode(controlCharacter, this.element));

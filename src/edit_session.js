@@ -2133,18 +2133,35 @@ class EditSession {
         var c, column;
         if (lang.mayContainGraphemeClusters(str)) {
             // one grapheme cluster occupies one screen column
-            var boundaries = lang.getGraphemeBoundaries(str);
             column = 0;
+            if (maxScreenColumn != Infinity) {
+                // iterate lazily so the early exit keeps this O(maxScreenColumn)
+                var self = this;
+                lang.forEachGrapheme(str, function(start, end) {
+                    c = str.charCodeAt(start);
+                    if (c == 9) {
+                        screenColumn += self.getScreenTabSize(screenColumn);
+                    } else {
+                        screenColumn += 1;
+                    }
+                    if (screenColumn > maxScreenColumn) {
+                        column = start;
+                        return false;
+                    }
+                    column = end;
+                });
+                return [screenColumn, column];
+            }
+            // full walk; without tabs the width is simply the cluster count
+            if (str.indexOf("\t") === -1)
+                return [screenColumn + lang.countGraphemes(str), str.length];
+            var boundaries = lang.getGraphemeBoundaries(str);
             for (var bi = 1; bi < boundaries.length; bi++) {
                 c = str.charCodeAt(boundaries[bi - 1]);
                 if (c == 9) {
                     screenColumn += this.getScreenTabSize(screenColumn);
                 } else {
                     screenColumn += 1;
-                }
-                if (screenColumn > maxScreenColumn) {
-                    column = boundaries[bi - 1];
-                    break;
                 }
                 column = boundaries[bi];
             }
