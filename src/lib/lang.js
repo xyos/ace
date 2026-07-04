@@ -211,10 +211,13 @@ exports.skipEmptyMatch = function(line, last, supportsUnicodeFlag) {
 /*global Intl*/
 var clusterRe;
 try {
-    // marks, ZWJ, variation selectors, astral code points, conjoining jamo;
+    // marks, ZWJ, variation selectors, astral code points, conjoining jamo,
+    // prepend characters (arabic number signs, malayalam dot reph) and the
+    // spacing marks segmenters attach to a base (thai/lao AM);
     // with the u flag paired surrogates match as code points, so astral
     // chars need the explicit \u{10000}-\u{10FFFF} range
-    clusterRe = new RegExp("[\\p{M}\\u200D\\uFE00-\\uFE0F\\u{10000}-\\u{10FFFF}\\u1100-\\u11FF\\uA960-\\uA97F\\uD7B0-\\uD7FF]", "u");
+    clusterRe = new RegExp("[\\p{M}\\u200C\\u200D\\uFE00-\\uFE0F\\u{10000}-\\u{10FFFF}\\u1100-\\u11FF\\uA960-\\uA97F\\uD7B0-\\uD7FF"
+        + "\\u0600-\\u0605\\u06DD\\u070F\\u0890\\u0891\\u08E2\\u0D4E\\u0E33\\u0EB3\\uFF9E\\uFF9F]", "u");
 } catch (e) {
     clusterRe = /[\u0300-\uFFFF]/;
 }

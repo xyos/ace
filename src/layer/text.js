@@ -681,6 +681,50 @@ class Text {
         parent.appendChild(overflowEl);
     }
 
+    /**
+     * Moves code units across token boundaries so that no boundary falls
+     * inside a grapheme cluster (a tokenizer may split e.g. keycap emoji
+     * "1️⃣" after the ascii digit). Returns the original array
+     * when nothing needs to change; affected tokens are copied because the
+     * input comes from the session's token cache.
+     * @param {import("../../ace-internal").Ace.Token[]} tokens
+     */
+    $alignTokensToClusters(tokens) {
+        var line = "";
+        for (var i = 0; i < tokens.length; i++)
+            line += tokens[i].value;
+        if (!lang.mayContainGraphemeClusters(line))
+            return tokens;
+
+        var boundaries = lang.getGraphemeBoundaries(line);
+        var boundarySet = Object.create(null);
+        for (var i = 0; i < boundaries.length; i++)
+            boundarySet[boundaries[i]] = true;
+
+        var end = 0, misaligned = false;
+        for (var i = 0; i < tokens.length - 1; i++) {
+            end += tokens[i].value.length;
+            if (!boundarySet[end]) { misaligned = true; break; }
+        }
+        if (!misaligned) return tokens;
+
+        // rebuild, snapping each token end back to the nearest cluster
+        // boundary; the cluster's units all move into the following token
+        var result = [];
+        var start = 0;
+        end = 0;
+        for (var i = 0; i < tokens.length; i++) {
+            end += tokens[i].value.length;
+            var cut = end;
+            if (i === tokens.length - 1) cut = line.length;
+            else while (cut > start && !boundarySet[cut]) cut--;
+            if (cut > start)
+                result.push({type: tokens[i].type, value: line.slice(start, cut)});
+            start = cut;
+        }
+        return result;
+    }
+
     // row is either first row of foldline or not in fold
     $renderLine(parent, row, foldLine) {
         if (!foldLine && foldLine != false)
@@ -690,6 +734,8 @@ class Text {
             var tokens = this.$getFoldLineTokens(row, foldLine);
         else
             var tokens = this.session.getTokens(row);
+
+        tokens = this.$alignTokensToClusters(tokens);
 
         var lastLineEl = parent;
         if (tokens.length) {
