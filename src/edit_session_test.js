@@ -443,6 +443,27 @@ module.exports = {
         // surrogate pairs
         splits = computeSplits("\u{1F600}\u{1F600}\u{1F600}", 2);
         assert.equal(splits.join(","), "4");
+
+        // full width chars wider than the wrap limit are placed whole
+        splits = computeSplits("\u6F22\u6F22\u6F22", 1);
+        assert.equal(splits.join(","), "1,2");
+        // trailing wide cluster ends the line without further splits
+        splits = computeSplits("a\u6F22", 1);
+        assert.equal(splits.join(","), "1");
+    },
+
+    "test: getStringScreenWidth counts grapheme clusters" : function() {
+        var session = new EditSession("");
+        session.setTabSize(4);
+        var w = session.$getStringScreenWidth.bind(session);
+
+        // cluster-per-column without tabs (fast path)
+        assert.equal(w("\u{1F600}b\u{1F600}")[0], 3);
+        // tab stops computed from grapheme columns (full walk)
+        assert.equal(w("\u{1F600}\tx").join(","), [5, 4].join(","));
+        assert.equal(w("a\u0300\tb").join(","), [5, 4].join(","));
+        // bounded walk exits early at the overflowing cluster
+        assert.equal(w("ab\u{1F600}cd", 2).join(","), [3, 2].join(","));
     },
 
     "test get longest line" : function() {

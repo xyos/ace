@@ -493,7 +493,6 @@ class FontMetrics {
      */
     getRects(startScreenPos, endScreenPos) {
         var row = startScreenPos.row;
-        var textLayer = this.textLayer;
         var lineElement = this.$findElementForScreenRow(row);
 
         if (lineElement) {
@@ -504,28 +503,17 @@ class FontMetrics {
                     this.$scratchRange.setStart(p1.node, p1.offset);
                     this.$scratchRange.setEnd(p2.node, p2.offset);
                     var rangeRects = this.$scratchRange.getClientRects();
-                    var hasCssTransform = true;
-                    if (hasCssTransform) {
-                        var tr = this.getTransform();
-                        var rects = [];
-                        for (var i = 0; i < rangeRects.length; i++) {
-                            var rangeRect = this.recoverRect(tr, rangeRects[i]);
-                            rangeRect.right = rangeRect.left + rangeRect.width;
-                            rects.push(rangeRect);
-                        }
-                        var leftOffset = this.renderer.gutterWidth + this.renderer.margin.left + this.renderer.$padding - this.renderer.scrollLeft;
-                        var merged = mergeTouchingRects(rects).map(function(r) {
-                            return {
-                                left: r.left - leftOffset,
-                                width: r.right - r.left,
-                            };
-                        });
-                        return merged;
+                    var tr = this.getTransform();
+                    var rects = [];
+                    for (var i = 0; i < rangeRects.length; i++) {
+                        var rangeRect = this.recoverRect(tr, rangeRects[i]);
+                        rangeRect.right = rangeRect.left + rangeRect.width;
+                        rects.push(rangeRect);
                     }
-                    var rect = textLayer.element.getBoundingClientRect();
-                    var merged = mergeTouchingRects(rangeRects).map(function(r) {
+                    var leftOffset = this.renderer.gutterWidth + this.renderer.margin.left + this.renderer.$padding - this.renderer.scrollLeft;
+                    var merged = mergeTouchingRects(rects).map(function(r) {
                         return {
-                            left: r.left - rect.left,
+                            left: r.left - leftOffset,
                             width: r.right - r.left,
                         };
                     });
